@@ -20,3 +20,7 @@ def readContract(w3, file, address):
 def days(num: int):
     return num * 60 * 60 * 24
 
+
+def fmt(dfp: float, decimals: int):
+    return ("{:,." + str(decimals) + "f}").format(round(dfp, decimals))
+

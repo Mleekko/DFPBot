@@ -81,11 +81,40 @@ class DFPBot:
         days_left = int((DAYS_365 - time_since_start) / days(1))
 
         msg = "Analysis of requested wallet(s)\n"
-        msg += f"Total XDP2 staked: {round(stake / 1e18, 4)}\n"
+        msg += f"Total XDP2 staked: {fmt(stake / 1e18, 4)}\n"
         msg += f"Pool share: {round(stake_percent, 2 if stake_percent > 0.09 else 3)}%\n"
-        msg += f"Unclaimed DFP2 Rewards: {round(unclaimed_rewards / 1e18, 3)}\n"
-        msg += f"Rewards rate: {round((rewards_in_24h - unclaimed_rewards) / 1e18, 1)} DFP2/day\n"
-        msg += f"Rewards for the remaining {days_left} days: {round((final_rewards - unclaimed_rewards) / 1e18, 1)} DFP2\n"
+        msg += f"Unclaimed DFP2 Rewards: {fmt(unclaimed_rewards / 1e18, 3)}\n"
+        msg += f"Rewards rate: {fmt((rewards_in_24h - unclaimed_rewards) / 1e18, 1)} DFP2/day\n"
+        msg += f"Rewards for the remaining {days_left} days: {fmt((final_rewards - unclaimed_rewards) / 1e18, 1)} DFP2\n"
+        return msg
+
+    def stats(self):
+        # [ totalStake uint96, rewardsAccumulatedPerLP uint96, lastUpdate uint32, startTime uint32]
+        staking_state = rewardsContract.functions.stakingState().call()
+
+        state_total_stake = staking_state[0]
+        state_rewardsAccumulatedPerLP = staking_state[1]
+        state_last_update = staking_state[2]
+        state_start_time = staking_state[3]
+        total_stake = 1600e18 if state_total_stake < 1600e18 else state_total_stake
+
+        time_now = time.time()
+        time_since_start = time_now - state_start_time
+        time_in_24h = time_now + days(1)
+
+        state_rewardsAccumulatedPerLP += self.get_rewards_added(state_last_update, time_since_start, total_stake)
+        state_rewardsAccumulatedPerLP_in_24h = state_rewardsAccumulatedPerLP + self.get_rewards_added(time_since_start, time_in_24h - state_start_time, total_stake)
+        state_rewardsAccumulatedPerLP_at_end = state_rewardsAccumulatedPerLP + self.get_rewards_added(time_since_start, DAYS_365, total_stake)
+
+        rewards_in_24h = int((state_rewardsAccumulatedPerLP_in_24h - state_rewardsAccumulatedPerLP) * total_stake >> 80)
+        final_rewards = int((state_rewardsAccumulatedPerLP_at_end - state_rewardsAccumulatedPerLP) * total_stake >> 80)
+
+        days_left = int((DAYS_365 - time_since_start) / days(1))
+
+        msg = "*Staking stats*\n"
+        msg += f"Rewards Rate: {fmt(rewards_in_24h / 1e18, 1)} DFP2/day\n"
+        msg += f"Remaining Days: {days_left}\n"
+        msg += f"Remaining Rewards: {fmt(final_rewards / 1e18, 0)} DFP2\n"
         return msg
 
     def get_rewards_added(self, t0, t1, total_stake):
@@ -97,7 +126,8 @@ class DFPBot:
     def help_message(self):
         msg = "Welcome to DefiPlazaBot!\n"
         msg += "\nCurrent commands:"
-        msg += "\n  /a <address(es)> --> Analyse wallet(s)"
+        msg += "\n  /stats - Display staking stats"
+        msg += "\n  /a <address(es)> - Analyse wallet(s)"
         #    msg += "\n  /projection <address> --> Rewards trend"
         return msg
 
@@ -107,10 +137,12 @@ class DFPBot:
         command = message.text.split()[0][1:]
         command = command.lower()
         if command in ['start', 'help']:
-            self.telegram.reply_to(message, self.help_message())
+            self.telegram.reply_to(message, self.help_message(), parse_mode='markdown')
         elif command in ['a', 'analyse', 'analyze']:
             wallets = message.text.lower().split()[1:]
-            self.telegram.reply_to(message, self.analyse_wallets(wallets))
+            self.telegram.reply_to(message, self.analyse_wallets(wallets), parse_mode='markdown')
+        elif command in ['stats']:
+            self.telegram.reply_to(message, self.stats(), parse_mode='markdown')
         else:
             self.telegram.reply_to(message, "Unknown command. Try /help for command list.")
 
@@ -119,10 +151,7 @@ if __name__ == "__main__":
     bot = DFPBot()
     print('Bot Started.')
 
-    validCommands = ['start', 'help', 'a', 'analyse', 'analyze']
-
-
-    @bot.telegram.message_handler(commands=validCommands)
+    @bot.telegram.message_handler(func=lambda message: True)
     def bot_command(message):
         try:
             bot.handle_command(message)
