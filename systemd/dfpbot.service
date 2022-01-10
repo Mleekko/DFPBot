@@ -1,0 +1,21 @@
+[Unit]
+Description=DFPBot Service
+After=multi-user.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=dfpbot
+Group=dfpbot
+WorkingDirectory=/home/dfpbot/DFPBot
+ExecStart=/usr/bin/python /home/dfpbot/DFPBot/DFPBot.py
+StandardInput=tty-force
+Restart=always
+RestartSec=5
+
+# Specifies which signal to use when killing a service. Defaults to SIGTERM.
+# SIGHUP gives dfpbot time to exit cleanly before SIGKILL (default 90s)
+KillSignal=SIGHUP
+
+[Install]
+WantedBy=multi-user.target

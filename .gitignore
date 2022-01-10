@@ -1,0 +1,9 @@
+/.idea
+/venv
+/env
+
+infura.json
+DefiPlazaBotToken.json
+
+*.pyc
+
